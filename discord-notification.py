@@ -9,6 +9,20 @@ from pytwitch.twitch import Twitch
 from discordwebhooks.webhook import DiscordWebhook, DiscordEmbed
 
 
+
+# User Settings
+
+
+# Set this to True to allow testing of notifications by using Start Recording
+# Set this to False when you want these notifications to happen when clicking Start Streaming
+NOTIFICATION_TESTING = False
+
+
+
+# END User Settings
+
+
+
 # Constants
 BOXART_RATIO = 13/18
 
@@ -224,8 +238,13 @@ class DiscordNotificationScript(OBSScript):
         OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_FINISHED_LOADING, self.__on_frontend_loaded)
         OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_EXIT, self.__unauthenticate_twitch)
         OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_SCENE_CHANGED, self.__on_scene_changed)
-        OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_STREAMING_STARTED, self.__on_start)
-        OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_STREAMING_STOPPED, self.__on_stop)
+
+        if NOTIFICATION_TESTING:
+            OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_RECORDING_STARTED, self.__on_start)
+            OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_RECORDING_STOPPED, self.__on_stop)
+        else:
+            OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_STREAMING_STARTED, self.__on_start)
+            OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_STREAMING_STOPPED, self.__on_stop)
 
     
 
