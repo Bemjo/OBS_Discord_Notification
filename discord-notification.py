@@ -139,6 +139,9 @@ class DiscordNotificationScript(OBSScript):
           
 
     def __on_start(self) -> None:
+        if (self._twitch is None):
+            self.__on_frontend_loaded()
+
         try:
             (name, title, game_name, _, boxart_url, width, height) = self.__get_relavent_channel_info()
         except (ValueError, NotAuthenticatedError) as err:
@@ -271,7 +274,6 @@ class DiscordNotificationScript(OBSScript):
 
         discord_start_msg_group = obs.obs_properties_create()
         discord_stop_msg_group = obs.obs_properties_create()
-
 
         obs.obs_properties_add_group(props, 'twitch_group', 'Twitch Information', obs.OBS_GROUP_NORMAL, twitch_group)
         obs.obs_properties_add_text(twitch_group, 'username', 'Twitch Username', obs.OBS_TEXT_DEFAULT)
