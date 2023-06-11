@@ -1,6 +1,5 @@
 import obspython as obs
 import json
-import tweepy
 
 from typing import Tuple, List, Optional, Union, Callable
 from pathlib import Path
@@ -94,12 +93,9 @@ class DiscordNotificationScript(OBSScript):
         self._loaded = True
 
 
-    def __attempt_authentication(self, twitch: Optional[bool] = True, twitter: Optional[bool] = True) -> None:
+    def __attempt_authentication(self, twitch: Optional[bool] = True) -> None:
         if twitch and self._twitch_auth_path is not None and self._twitch_auth_path.is_file() and (self._twitch is None or not self._twitch.authenticated):
             self.__authenticate_twitch()
-
-        if twitter and self._twitter_auth_path is not None and self._twitter_auth_path.is_file() and self._tweepy_api is None:
-            self.__authenticate_twitter()
 
 
     def __authenticate_twitch(self) -> None:
@@ -126,27 +122,7 @@ class DiscordNotificationScript(OBSScript):
     def __unauthenticate_twitch(self) -> None:
         if self._twitch and self._twitch.authenticated:
             self._twitch.revoke_my_access()
-
-
-    def __authenticate_twitter(self) -> None:
-        print('Authenticating with twitter...')
-
-        try:
-            twit_keys = load_json_file(self._twitter_auth_path)
-        except ValueError as err:
-            print(f'{err}')
-        else:
-            if twit_keys is not None:
-                auth = tweepy.OAuthHandler(twit_keys.get('api_key'), twit_keys.get('api_secret'))
-                auth.set_access_token(twit_keys.get('user_token'), twit_keys.get('user_secret'))
-                try:
-                    self._tweepy_api = tweepy.API(auth)
-                except tweepy.TweepError as err:
-                    self._tweepy_api = None
-                    print(f'Invalid data in twitter auth file {self._twitter_auth_path.as_posix()} --- {err}')
-                else:
-                    print('Twitter Authentication successful.')                
-
+          
 
     def __on_start(self) -> None:
         try:
@@ -171,19 +147,6 @@ class DiscordNotificationScript(OBSScript):
                     self._discord_start_msg,
                     [embed])
 
-            if self._tweepy_api is not None and self._do_twitter_start_notice:
-                status = '\r\n\r\n'.join(self._twitter_start_msg_lines)
-                status_len = len(status)
-                url_len = len(stream_url)
-                
-                total_len = status_len + url_len
-
-                # message is too long, shorten the status
-                if total_len > 276:
-                    over = total_len - 276
-                    status = status[0:status_len-over]
-
-                self._tweepy_api.update_status(status = status + '\r\n\r\n' + stream_url)
         finally:
             self._is_streaming = True
 
@@ -217,16 +180,6 @@ class DiscordNotificationScript(OBSScript):
                 [(url, None, None) for url in self._hooks_list],
                 self._discord_stop_msg,
                 [embed])
-
-        if self._tweepy_api is not None and self._do_twitter_stop_notice:
-            status = '\r\n\r\n'.join(self._twitter_stop_msg_lines)
-            status_len = len(status)
-            # message is too long, shorten the status
-            if status_len > 280:
-                over = status_len - 280
-                status = status[0:status_len-over]
-
-            self._tweepy_api.update_status(status = status)
 
         self._is_streaming = False
 
@@ -273,8 +226,6 @@ class DiscordNotificationScript(OBSScript):
         OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_SCENE_CHANGED, self.__on_scene_changed)
         OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_STREAMING_STARTED, self.__on_start)
         OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_STREAMING_STOPPED, self.__on_stop)
-        #OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_RECORDING_STARTED, self.__on_start)
-        #OBSScript.register_frontend_event_callback(obs.OBS_FRONTEND_EVENT_RECORDING_STOPPED, self.__on_stop)
 
     
 
@@ -298,12 +249,9 @@ class DiscordNotificationScript(OBSScript):
         props = obs.obs_properties_create()
         twitch_group = obs.obs_properties_create()
         discord_group = obs.obs_properties_create()
-        twitter_group = obs.obs_properties_create()
 
         discord_start_msg_group = obs.obs_properties_create()
         discord_stop_msg_group = obs.obs_properties_create()
-        twitter_start_msg_group = obs.obs_properties_create()
-        twitter_stop_msg_group = obs.obs_properties_create()
 
 
         obs.obs_properties_add_group(props, 'twitch_group', 'Twitch Information', obs.OBS_GROUP_NORMAL, twitch_group)
@@ -319,15 +267,6 @@ class DiscordNotificationScript(OBSScript):
         obs.obs_properties_add_text(discord_stop_msg_group, 'discord_stop_msg', 'Discord Stop Message', obs.OBS_TEXT_DEFAULT)
 
         obs.obs_properties_add_editable_list(discord_group, 'hook_urls_list', 'Discord Hook URLs', obs.OBS_EDITABLE_LIST_TYPE_STRINGS, '', '')
-
-        obs.obs_properties_add_group(props, 'twitter_group', 'Twitter Information', obs.OBS_GROUP_NORMAL, twitter_group)
-        obs.obs_properties_add_path(twitter_group, 'twitter_auth_path', 'Twitter Auth File', obs.OBS_PATH_FILE_SAVE, '*.json', '')
-
-        obs.obs_properties_add_group(twitter_group, 'twitter_do_start', 'Enable Twitter Start Msg', obs.OBS_GROUP_CHECKABLE, twitter_start_msg_group)
-        obs.obs_properties_add_editable_list(twitter_start_msg_group, 'twitter_start_msg_lines', 'Twitter Start Message Lines', obs.OBS_EDITABLE_LIST_TYPE_STRINGS, '', '')
-
-        obs.obs_properties_add_group(twitter_group, 'twitter_do_stop', 'Enable Twitter Stop Msg', obs.OBS_GROUP_CHECKABLE, twitter_stop_msg_group)
-        obs.obs_properties_add_editable_list(twitter_stop_msg_group, 'twitter_stop_msg_lines', 'Twitter Stop Message Lines', obs.OBS_EDITABLE_LIST_TYPE_STRINGS, '', '')
 
         return props
 
@@ -347,30 +286,20 @@ class DiscordNotificationScript(OBSScript):
         self._username = obs.obs_data_get_string(settings, 'username')
         self._boxart_height = obs.obs_data_get_int(settings, 'boxart_height')
         twitch_auth_path = Path(obs.obs_data_get_string(settings, 'twitch_auth_path'))
-        twitter_auth_path = Path(obs.obs_data_get_string(settings, 'twitter_auth_path'))
 
         self._do_discord_start_notice = obs.obs_data_get_bool(settings, 'discord_do_start')
         self._do_discord_stop_notice = obs.obs_data_get_bool(settings, 'discord_do_stop')
-        self._do_twitter_start_notice = obs.obs_data_get_bool(settings, 'twitter_do_start')
-        self._do_twitter_stop_notice = obs.obs_data_get_bool(settings, 'twitter_do_stop')
 
         self._hooks_list = self.__obs_list_to_python_list(settings, 'hook_urls_list')
-        self._twitter_start_msg_lines = self.__obs_list_to_python_list(settings, 'twitter_start_msg_lines')
-        self._twitter_stop_msg_lines = self.__obs_list_to_python_list(settings, 'twitter_stop_msg_lines')
 
         authTwitch = False
-        authTwitter = False
 
         if twitch_auth_path != self._twitch_auth_path:
             self._twitch_auth_path = twitch_auth_path
             authTwitch = True
 
-        if twitter_auth_path != self._twitter_auth_path:
-            self._twitter_auth_path = twitter_auth_path
-            authTwitter = True
-
         if self._loaded:
-            self.__attempt_authentication(authTwitch, authTwitter)
+            self.__attempt_authentication(authTwitch)
 
 
 
