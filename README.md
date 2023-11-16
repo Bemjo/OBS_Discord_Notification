@@ -7,7 +7,7 @@ USE AT YOUR OWN RISK, BUT PLEASE DON'T USE IT AT ALL!
 
 If you wish to learn about OBS scripting with python than this can be a source to explore.
 
-Requirements:
-Python 3
-OBS setup for your python install so it can run python scripts
-Requests package https://pypi.org/project/requests/: python -m pip install requests
+Requirements:  
+Python 3  
+OBS setup for your python install so it can run python scripts  
+Requests package https://pypi.org/project/requests/: python -m pip install requests  
